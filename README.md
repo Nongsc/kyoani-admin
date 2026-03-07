@@ -55,8 +55,8 @@ src/
 ### 1. 克隆仓库
 
 ```bash
-git clone https://github.com/你的用户名/blog-admin.git
-cd blog-admin
+git clone https://github.com/Nongsc/kyoani-admin.git
+cd kyoani-admin
 ```
 
 ### 2. 安装依赖
@@ -110,11 +110,19 @@ npm run dev
 
 ## 相关项目
 
-- **博客前端**: [blog-frontend](https://github.com/你的用户名/blog-frontend)
+- **博客前端**: [kyoani-blog](https://github.com/Nongsc/kyoani-blog)
 
 ---
 
 ## 致谢
+
+本项目在 **Tencent CodeBuddy** AI 编程助手的辅助下完成开发与部署，感谢腾讯云提供的高效 AI 编程工具。
+
+<p align="center">
+  <a href="https://www.codebuddy.cn/">
+    <img src="https://img.shields.io/badge/Powered%20by-Tencent%20CodeBuddy-blue?style=flat-square" alt="Powered by Tencent CodeBuddy" />
+  </a>
+</p>
 
 本项目基于 [next-shadcn-dashboard-starter](https://github.com/Kiranism/next-shadcn-dashboard-starter) 模板开发，感谢原作者 [Kiranism](https://github.com/Kiranism) 的开源贡献。
 
@@ -132,3 +140,9 @@ npm run dev
 如果你觉得原模板有帮助，请给 [next-shadcn-dashboard-starter](https://github.com/Kiranism/next-shadcn-dashboard-starter) 一个 Star ⭐
 
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow?style=flat-square&logo=buymeacoffee)](https://buymeacoffee.com/kir4n)
+
+---
+
+<p align="center">
+  Made with ❤️ using Tencent CodeBuddy
+</p>
