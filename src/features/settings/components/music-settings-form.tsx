@@ -85,8 +85,21 @@ export function MusicSettingsForm() {
             音乐播放器配置
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">无法加载配置</p>
+        <CardContent className="space-y-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2">
+            <p className="text-sm font-medium text-amber-900">配置未加载</p>
+            <p className="text-xs text-amber-700">
+              请检查以下配置：
+            </p>
+            <ol className="text-xs text-amber-700 list-decimal list-inside space-y-1">
+              <li>Supabase 环境变量是否已配置（.env.local）</li>
+              <li>music_config 表是否已在数据库中创建</li>
+              <li>开发服务器是否已重启</li>
+            </ol>
+            <p className="text-xs text-amber-700 mt-2">
+              详细配置步骤请查看：<code className="bg-amber-100 px-1 rounded">admin/docs/supabase-setup-guide.md</code>
+            </p>
+          </div>
         </CardContent>
       </Card>
     );

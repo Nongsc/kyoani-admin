@@ -18,6 +18,18 @@ export interface MusicConfigData {
  * 获取音乐配置
  */
 export async function getMusicConfig(): Promise<MusicConfigData | null> {
+  // 检查环境变量
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceKey) {
+    console.error('Missing Supabase environment variables. Please check:');
+    console.error('  - NEXT_PUBLIC_SUPABASE_URL');
+    console.error('  - SUPABASE_SERVICE_ROLE_KEY');
+    console.error('See admin/docs/supabase-setup-guide.md for setup instructions.');
+    return null;
+  }
+
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
@@ -29,6 +41,8 @@ export async function getMusicConfig(): Promise<MusicConfigData | null> {
   if (error) {
     // 如果表为空，初始化默认配置
     if (error.code === 'PGRST116') {
+      console.log('music_config table is empty, initializing default config...');
+      
       const { data: newData, error: insertError } = await supabase
         .from('music_config')
         .insert({
@@ -42,10 +56,19 @@ export async function getMusicConfig(): Promise<MusicConfigData | null> {
 
       if (insertError) {
         console.error('Error initializing music config:', insertError);
+        console.error('Make sure the music_config table exists. See admin/docs/supabase-setup-guide.md');
         return null;
       }
 
+      console.log('Default music config created successfully');
       return newData;
+    }
+
+    // 表不存在的错误
+    if (error.code === '42P01') {
+      console.error('music_config table does not exist. Please run the SQL migration.');
+      console.error('See admin/docs/supabase-setup-guide.md for instructions.');
+      return null;
     }
 
     console.error('Error fetching music config:', error);
