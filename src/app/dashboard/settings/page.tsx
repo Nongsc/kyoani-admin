@@ -1,5 +1,6 @@
 import { getSiteSettings } from '@/features/settings/actions/settings';
 import { SettingsForm } from '@/features/settings/components/settings-form';
+import { MusicSettingsForm } from '@/features/settings/components/music-settings-form';
 
 export default async function SettingsPage() {
   const settings = await getSiteSettings();
@@ -11,6 +12,7 @@ export default async function SettingsPage() {
         <p className='text-muted-foreground'>管理博客站点配置</p>
       </div>
       <SettingsForm settings={settings} />
+      <MusicSettingsForm />
     </div>
   );
 }
