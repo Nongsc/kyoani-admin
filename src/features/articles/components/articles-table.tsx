@@ -9,7 +9,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
+  TableRow
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,7 +17,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
@@ -27,17 +27,20 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialogTitle
 } from '@/components/ui/alert-dialog';
-import { deleteArticle, toggleArticleStatus } from '@/features/articles/actions/articles';
+import {
+  deleteArticle,
+  toggleArticleStatus
+} from '@/features/articles/actions/articles';
 import { toast } from 'sonner';
 import { MoreHorizontal, Pencil, Trash2, Eye, EyeOff } from 'lucide-react';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
-import type { Article } from '@/types/blog';
+import type { ArticleListItem } from '@/types/blog';
 
 interface ArticlesTableProps {
-  articles: Article[];
+  articles: ArticleListItem[];
 }
 
 export function ArticlesTable({ articles }: ArticlesTableProps) {
@@ -47,24 +50,24 @@ export function ArticlesTable({ articles }: ArticlesTableProps) {
 
   const handleDelete = async () => {
     if (!deleteId) return;
-    
+
     setIsDeleting(true);
     const result = await deleteArticle(deleteId);
-    
+
     if (result.success) {
       toast.success('文章已删除');
       router.refresh();
     } else {
       toast.error(result.error || '删除失败');
     }
-    
+
     setIsDeleting(false);
     setDeleteId(null);
   };
 
   const handleToggleStatus = async (id: string) => {
     const result = await toggleArticleStatus(id);
-    
+
     if (result.success) {
       toast.success('状态已更新');
       router.refresh();
@@ -104,7 +107,7 @@ export function ArticlesTable({ articles }: ArticlesTableProps) {
                 <TableCell>
                   <div className='flex flex-col'>
                     <span className='font-medium'>{article.title}</span>
-                    <span className='text-xs text-muted-foreground'>
+                    <span className='text-muted-foreground text-xs'>
                       {article.slug}
                     </span>
                   </div>
@@ -113,26 +116,35 @@ export function ArticlesTable({ articles }: ArticlesTableProps) {
                   {article.categories ? (
                     <Badge variant='outline'>{article.categories.name}</Badge>
                   ) : (
-                    <span className='text-muted-foreground text-sm'>未分类</span>
+                    <span className='text-muted-foreground text-sm'>
+                      未分类
+                    </span>
                   )}
                 </TableCell>
                 <TableCell>
                   <div className='flex flex-wrap gap-1'>
                     {article.article_tags?.slice(0, 3).map((at) => (
-                      <Badge key={at.tag_id} variant='secondary' className='text-xs'>
-                        {at.tags?.name}
+                      <Badge
+                        key={at.tag_id}
+                        variant='secondary'
+                        className='text-xs'
+                      >
+                        {at.tags?.[0]?.name}
                       </Badge>
                     ))}
-                    {article.article_tags && article.article_tags.length > 3 && (
-                      <Badge variant='secondary' className='text-xs'>
-                        +{article.article_tags.length - 3}
-                      </Badge>
-                    )}
+                    {article.article_tags &&
+                      article.article_tags.length > 3 && (
+                        <Badge variant='secondary' className='text-xs'>
+                          +{article.article_tags.length - 3}
+                        </Badge>
+                      )}
                   </div>
                 </TableCell>
                 <TableCell>
                   <Badge
-                    variant={article.status === 'published' ? 'default' : 'secondary'}
+                    variant={
+                      article.status === 'published' ? 'default' : 'secondary'
+                    }
                     className='cursor-pointer'
                     onClick={() => handleToggleStatus(article.id)}
                   >
@@ -150,7 +162,9 @@ export function ArticlesTable({ articles }: ArticlesTableProps) {
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  {format(new Date(article.created_at), 'yyyy-MM-dd', { locale: zhCN })}
+                  {format(new Date(article.created_at), 'yyyy-MM-dd', {
+                    locale: zhCN
+                  })}
                 </TableCell>
                 <TableCell>
                   <DropdownMenu>

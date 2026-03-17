@@ -2,31 +2,46 @@
 
 import { createAdminClient } from '@/lib/supabase/admin';
 import { auth } from '@/lib/auth';
-import { revalidatePath } from 'next/cache';
-import type { Article, ArticleFormData, Category, Tag } from '@/types/blog';
+import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache';
+import type {
+  Article,
+  ArticleListItem,
+  CategoryListItem,
+  TagListItem
+} from '@/types/blog';
+import {
+  validateArticleFormData,
+  sanitizeInput,
+  isValidUUID
+} from '@/lib/validation';
+import type { ArticleFormData } from '@/lib/validation';
 
-// Get all articles
-export async function getArticles(): Promise<Article[]> {
+// 优化的文章查询：只选择列表页需要的字段
+const getArticlesQuery = async (): Promise<ArticleListItem[]> => {
   const supabase = createAdminClient();
-  
+
   const { data, error } = await supabase
     .from('articles')
-    .select(`
-      *,
+    .select(
+      `
+      id,
+      title,
+      slug,
+      status,
+      created_at,
       categories (
         id,
-        name,
-        slug
+        name
       ),
       article_tags (
         tag_id,
         tags (
           id,
-          name,
-          slug
+          name
         )
       )
-    `)
+    `
+    )
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -34,16 +49,29 @@ export async function getArticles(): Promise<Article[]> {
     return [];
   }
 
-  return data || [];
-}
+  // 类型转换：Supabase 返回的 categories 是单个对象或 null
+  return (data || []).map((item) => ({
+    ...item,
+    categories: Array.isArray(item.categories)
+      ? item.categories[0]
+      : item.categories
+  })) as ArticleListItem[];
+};
+
+// 缓存文章列表（30秒）
+export const getArticles = unstable_cache(getArticlesQuery, ['articles-list'], {
+  revalidate: 30,
+  tags: ['articles']
+});
 
 // Get article by ID
 export async function getArticleById(id: string): Promise<Article | null> {
   const supabase = createAdminClient();
-  
+
   const { data, error } = await supabase
     .from('articles')
-    .select(`
+    .select(
+      `
       *,
       categories (
         id,
@@ -58,7 +86,8 @@ export async function getArticleById(id: string): Promise<Article | null> {
           slug
         )
       )
-    `)
+    `
+    )
     .eq('id', id)
     .single();
 
@@ -73,10 +102,11 @@ export async function getArticleById(id: string): Promise<Article | null> {
 // Get article by slug
 export async function getArticleBySlug(slug: string): Promise<Article | null> {
   const supabase = createAdminClient();
-  
+
   const { data, error } = await supabase
     .from('articles')
-    .select(`
+    .select(
+      `
       *,
       categories (
         id,
@@ -91,7 +121,8 @@ export async function getArticleBySlug(slug: string): Promise<Article | null> {
           slug
         )
       )
-    `)
+    `
+    )
     .eq('slug', slug)
     .single();
 
@@ -104,14 +135,23 @@ export async function getArticleBySlug(slug: string): Promise<Article | null> {
 }
 
 // Create article
-export async function createArticle(formData: ArticleFormData): Promise<{ success: boolean; error?: string; data?: Article }> {
+export async function createArticle(
+  formData: ArticleFormData
+): Promise<{ success: boolean; error?: string; data?: Article }> {
   const session = await auth();
   if (!session) {
     return { success: false, error: '未授权' };
   }
 
+  // 验证表单数据
+  const validation = validateArticleFormData(formData);
+  if (!validation.valid) {
+    const firstError = Object.values(validation.errors)[0];
+    return { success: false, error: firstError };
+  }
+
   const supabase = createAdminClient();
-  
+
   // Check if slug exists
   const { data: existing } = await supabase
     .from('articles')
@@ -123,18 +163,25 @@ export async function createArticle(formData: ArticleFormData): Promise<{ succes
     return { success: false, error: 'Slug 已存在，请使用其他名称' };
   }
 
+  // 净化输入
+  const sanitizedTitle = sanitizeInput(formData.title);
+  const sanitizedExcerpt = formData.excerpt
+    ? sanitizeInput(formData.excerpt)
+    : null;
+
   const { data, error } = await supabase
     .from('articles')
     .insert({
-      title: formData.title,
+      title: sanitizedTitle,
       slug: formData.slug,
       content: formData.content,
-      excerpt: formData.excerpt || null,
+      excerpt: sanitizedExcerpt,
       cover_image: formData.cover_image || null,
       category_id: formData.category_id || null,
       author_id: session.user?.id || null,
       status: formData.status,
-      published_at: formData.status === 'published' ? new Date().toISOString() : null,
+      published_at:
+        formData.status === 'published' ? new Date().toISOString() : null
     })
     .select()
     .single();
@@ -146,27 +193,44 @@ export async function createArticle(formData: ArticleFormData): Promise<{ succes
 
   // Insert article tags
   if (formData.tags.length > 0) {
-    const tagInserts = formData.tags.map(tagId => ({
+    const tagInserts = formData.tags.map((tagId) => ({
       article_id: data.id,
-      tag_id: tagId,
+      tag_id: tagId
     }));
 
     await supabase.from('article_tags').insert(tagInserts);
   }
 
   revalidatePath('/dashboard/articles');
+  // 同时清除缓存标签
+  revalidateTag('articles', 'articles-list');
   return { success: true, data };
 }
 
 // Update article
-export async function updateArticle(id: string, formData: ArticleFormData): Promise<{ success: boolean; error?: string }> {
+export async function updateArticle(
+  id: string,
+  formData: ArticleFormData
+): Promise<{ success: boolean; error?: string }> {
   const session = await auth();
   if (!session) {
     return { success: false, error: '未授权' };
   }
 
+  // 验证文章 ID
+  if (!isValidUUID(id)) {
+    return { success: false, error: '文章 ID 格式无效' };
+  }
+
+  // 验证表单数据
+  const validation = validateArticleFormData(formData);
+  if (!validation.valid) {
+    const firstError = Object.values(validation.errors)[0];
+    return { success: false, error: firstError };
+  }
+
   const supabase = createAdminClient();
-  
+
   // Check if slug exists for other articles
   const { data: existing } = await supabase
     .from('articles')
@@ -179,18 +243,25 @@ export async function updateArticle(id: string, formData: ArticleFormData): Prom
     return { success: false, error: 'Slug 已存在，请使用其他名称' };
   }
 
+  // 净化输入
+  const sanitizedTitle = sanitizeInput(formData.title);
+  const sanitizedExcerpt = formData.excerpt
+    ? sanitizeInput(formData.excerpt)
+    : null;
+
   const { error } = await supabase
     .from('articles')
     .update({
-      title: formData.title,
+      title: sanitizedTitle,
       slug: formData.slug,
       content: formData.content,
-      excerpt: formData.excerpt || null,
+      excerpt: sanitizedExcerpt,
       cover_image: formData.cover_image || null,
       category_id: formData.category_id || null,
       status: formData.status,
-      published_at: formData.status === 'published' ? new Date().toISOString() : null,
-      updated_at: new Date().toISOString(),
+      published_at:
+        formData.status === 'published' ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString()
     })
     .eq('id', id);
 
@@ -201,36 +272,41 @@ export async function updateArticle(id: string, formData: ArticleFormData): Prom
 
   // Update article tags
   await supabase.from('article_tags').delete().eq('article_id', id);
-  
+
   if (formData.tags.length > 0) {
-    const tagInserts = formData.tags.map(tagId => ({
+    const tagInserts = formData.tags.map((tagId) => ({
       article_id: id,
-      tag_id: tagId,
+      tag_id: tagId
     }));
 
     await supabase.from('article_tags').insert(tagInserts);
   }
 
   revalidatePath('/dashboard/articles');
+  revalidateTag('articles', 'articles-list');
   return { success: true };
 }
 
 // Delete article
-export async function deleteArticle(id: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteArticle(
+  id: string
+): Promise<{ success: boolean; error?: string }> {
   const session = await auth();
   if (!session) {
     return { success: false, error: '未授权' };
   }
 
+  // 验证文章 ID
+  if (!isValidUUID(id)) {
+    return { success: false, error: '文章 ID 格式无效' };
+  }
+
   const supabase = createAdminClient();
-  
+
   // Delete article tags first
   await supabase.from('article_tags').delete().eq('article_id', id);
-  
-  const { error } = await supabase
-    .from('articles')
-    .delete()
-    .eq('id', id);
+
+  const { error } = await supabase.from('articles').delete().eq('id', id);
 
   if (error) {
     console.error('Error deleting article:', error);
@@ -238,18 +314,26 @@ export async function deleteArticle(id: string): Promise<{ success: boolean; err
   }
 
   revalidatePath('/dashboard/articles');
+  revalidateTag('articles', 'articles-list');
   return { success: true };
 }
 
 // Toggle article status
-export async function toggleArticleStatus(id: string): Promise<{ success: boolean; error?: string }> {
+export async function toggleArticleStatus(
+  id: string
+): Promise<{ success: boolean; error?: string }> {
   const session = await auth();
   if (!session) {
     return { success: false, error: '未授权' };
   }
 
+  // 验证文章 ID
+  if (!isValidUUID(id)) {
+    return { success: false, error: '文章 ID 格式无效' };
+  }
+
   const supabase = createAdminClient();
-  
+
   const { data: article } = await supabase
     .from('articles')
     .select('status')
@@ -261,13 +345,13 @@ export async function toggleArticleStatus(id: string): Promise<{ success: boolea
   }
 
   const newStatus = article.status === 'draft' ? 'published' : 'draft';
-  
+
   const { error } = await supabase
     .from('articles')
     .update({
       status: newStatus,
       published_at: newStatus === 'published' ? new Date().toISOString() : null,
-      updated_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     })
     .eq('id', id);
 
@@ -277,39 +361,54 @@ export async function toggleArticleStatus(id: string): Promise<{ success: boolea
   }
 
   revalidatePath('/dashboard/articles');
+  revalidateTag('articles', 'articles-list');
   return { success: true };
 }
 
-// Get all categories
-export async function getCategories(): Promise<Category[]> {
-  const supabase = createAdminClient();
-  
-  const { data, error } = await supabase
-    .from('categories')
-    .select('*')
-    .order('name', { ascending: true });
+// Get all categories - 缓存优化
+export const getCategories = unstable_cache(
+  async (): Promise<CategoryListItem[]> => {
+    const supabase = createAdminClient();
 
-  if (error) {
-    console.error('Error fetching categories:', error);
-    return [];
+    const { data, error } = await supabase
+      .from('categories')
+      .select('id, name, slug')
+      .order('name', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching categories:', error);
+      return [];
+    }
+
+    return data || [];
+  },
+  ['categories-list'],
+  {
+    revalidate: 60,
+    tags: ['categories']
   }
+);
 
-  return data || [];
-}
+// Get all tags - 缓存优化
+export const getTags = unstable_cache(
+  async (): Promise<TagListItem[]> => {
+    const supabase = createAdminClient();
 
-// Get all tags
-export async function getTags(): Promise<Tag[]> {
-  const supabase = createAdminClient();
-  
-  const { data, error } = await supabase
-    .from('tags')
-    .select('*')
-    .order('name', { ascending: true });
+    const { data, error } = await supabase
+      .from('tags')
+      .select('id, name, slug')
+      .order('name', { ascending: true });
 
-  if (error) {
-    console.error('Error fetching tags:', error);
-    return [];
+    if (error) {
+      console.error('Error fetching tags:', error);
+      return [];
+    }
+
+    return data || [];
+  },
+  ['tags-list'],
+  {
+    revalidate: 60,
+    tags: ['tags']
   }
-
-  return data || [];
-}
+);

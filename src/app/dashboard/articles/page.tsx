@@ -1,5 +1,7 @@
+import Link from 'next/link';
 import { getArticles } from '@/features/articles/actions/articles';
 import { ArticlesTable } from '@/features/articles/components/articles-table';
+import { Button } from '@/components/ui/button';
 
 export default async function ArticlesPage() {
   const articles = await getArticles();
@@ -11,6 +13,9 @@ export default async function ArticlesPage() {
           <h1 className='text-2xl font-bold'>文章管理</h1>
           <p className='text-muted-foreground'>管理博客文章内容</p>
         </div>
+        <Button asChild>
+          <Link href='/dashboard/articles/new'>新建文章</Link>
+        </Button>
       </div>
       <ArticlesTable articles={articles} />
     </div>

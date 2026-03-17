@@ -16,6 +16,20 @@ export interface Article {
   article_tags?: ArticleTag[];
 }
 
+// 轻量级文章类型，用于列表页（只包含列表需要的字段）
+export interface ArticleListItem {
+  id: string;
+  title: string;
+  slug: string;
+  status: 'draft' | 'published';
+  created_at: string;
+  categories?: { id: string; name: string } | null; // 多对一关系：单个对象或 null
+  article_tags?: {
+    tag_id: string;
+    tags: { id: string; name: string }[]; // Supabase 返回数组形式
+  }[];
+}
+
 export interface Category {
   id: string;
   name: string;
@@ -25,11 +39,25 @@ export interface Category {
   updated_at: string;
 }
 
+// 轻量级分类类型，用于下拉选择
+export interface CategoryListItem {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export interface Tag {
   id: string;
   name: string;
   slug: string;
   created_at: string;
+}
+
+// 轻量级标签类型，用于下拉选择
+export interface TagListItem {
+  id: string;
+  name: string;
+  slug: string;
 }
 
 export interface ArticleTag {
