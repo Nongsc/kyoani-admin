@@ -5,7 +5,7 @@ import {
   isValidUUID,
   isValidLength,
   isRequiredString
-} from './validation';
+} from '@/lib/validation';
 
 // Mock Supabase
 const mockFrom = vi.fn();
